@@ -258,7 +258,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 		{
 			if (WaitForSingleObject(pDlg->m_hQuitEvent, 50) == WAIT_OBJECT_0)
 			{
-				OutputDebugString(_T("regex quit"));
+				OutputDebugString(_T("sinoiov regex quit"));
 				break;
 			}
 			
@@ -276,6 +276,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			std::wsmatch wideMatch;
 
 			BOOL result = FALSE;
+			// 根据不同的选定状态执行
 			switch (pDlg->m_ModeValue) {
 			case 1:
 				if (result = std::regex_search(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx))
@@ -290,6 +291,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 				}
 				break;
 			case 3:
+				// TODO: 暂时没有实现
 				break;
 			default:
 				break;
