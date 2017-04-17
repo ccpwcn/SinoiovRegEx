@@ -8,6 +8,14 @@
 
 #define WM_NOTIFY_UI (WM_USER+8)
 
+enum STATUS {IDEL = 0, SUCCESSED = 1, FAILED = 2};
+
+typedef struct _tagNotifyUiTag 
+{
+	short m_nStatus;
+	TCHAR m_szMessage[BUFSIZ];
+}NOTIFY_UI_ENTITY;
+
 // CSinoiovRegExDlg 对话框
 class CSinoiovRegExDlg : public CDialogEx
 {
@@ -64,7 +72,14 @@ protected:
 private:
 	// 结果集
 	CListBox m_ResultSet;
-	short m_nStatusFlag;
+	NOTIFY_UI_ENTITY m_tNotifyUiEntity;
 public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+private:
+	// ECMAScript
+	CButton m_ECMAScript;
+	// 大小写开关控件
+	CButton m_CaseSensitive;
+	// 多行模式
+	CButton m_Multiline;
 };

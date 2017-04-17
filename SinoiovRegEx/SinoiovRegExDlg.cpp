@@ -57,6 +57,11 @@ CSinoiovRegExDlg::CSinoiovRegExDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(IDD_SINOIOVREGEX_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+
+	m_hWorkThread = NULL;
+	m_hRunEvent = NULL;
+	m_hQuitEvent = NULL;
+	memset(&m_tNotifyUiEntity, 0, sizeof(m_tNotifyUiEntity));
 }
 
 void CSinoiovRegExDlg::DoDataExchange(CDataExchange* pDX)
@@ -66,6 +71,9 @@ void CSinoiovRegExDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_EDIT_SOURCE, m_SourceText);
 	DDX_Control(pDX, IDC_STATIC_STATUS, m_ResultStatus);
 	DDX_Control(pDX, IDC_LIST_RESULT, m_ResultSet);
+	DDX_Control(pDX, IDC_CHECK_ECMAScript, m_ECMAScript);
+	DDX_Control(pDX, IDC_CHECK_CASE_SENSITIVE, m_CaseSensitive);
+	DDX_Control(pDX, IDC_CHECK_MULTILINE, m_Multiline);
 }
 
 BEGIN_MESSAGE_MAP(CSinoiovRegExDlg, CDialogEx)
@@ -131,9 +139,10 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 	}
 
 	// 默认模式
+	m_CaseSensitive.SetCheck(1);
 	((CButton *)GetDlgItem(IDC_RADIO1))->SetCheck(TRUE);
 	m_ModeValue = 1;
-	m_nStatusFlag = 0;
+	m_tNotifyUiEntity.m_nStatus = IDEL;
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -205,7 +214,8 @@ BOOL CSinoiovRegExDlg::PreTranslateMessage(MSG* pMsg)
 		switch (pMsg->wParam)
 		{
 		case VK_RETURN:
-			return true;
+			if (GetFocus() != GetDlgItem(IDC_EDIT_SOURCE))
+				return true;
 		default:
 			break;
 		}
@@ -262,30 +272,56 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 				break;
 			}
 			
+			DWORD dwStartTime = GetTickCount();
+
 			CString srcRegex;
 			pDlg->m_SourceRegex.GetWindowText(srcRegex);
 			std::wstring wRegexStr(srcRegex.GetBuffer());
 			srcRegex.ReleaseBuffer();
-			std::wregex wrx(wRegexStr.c_str());
+			std::wregex wrx;
+			std::regex_constants::syntax_option_type type;
 
 			CString srcText;
 			pDlg->m_SourceText.GetWindowText(srcText);
 			std::wstring wSrcText(srcText.GetBuffer());
 			srcText.ReleaseBuffer();
+			OutputDebugString(wSrcText.c_str());
 
 			std::wsmatch wideMatch;
 
+			std::regex_constants::match_flag_type flag;;
+			if (pDlg->m_ECMAScript.GetCheck() == 1)
+			{
+				flag = std::regex_constants::format_default;
+				type = std::regex::ECMAScript;
+			}
+
+			if (pDlg->m_CaseSensitive.GetCheck() == 0)
+			{
+				type = type | std::regex_constants::icase;
+				
+			}
+			if (pDlg->m_Multiline.GetCheck() == 1)
+			{
+				type = type | std::regex_constants::multiline;
+			}
+			wrx = std::wregex(wRegexStr.c_str(), type);
+
 			BOOL result = FALSE;
 			// 根据不同的选定状态执行
+			std::wstring buffer;
 			switch (pDlg->m_ModeValue) {
 			case 1:
-				if (result = std::regex_search(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx))
+				if (buffer.length() > 0 && (result = std::regex_search(buffer.cbegin(), buffer.cend(), wideMatch, wrx, flag)) == TRUE)
 				{
-					pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
+					for (unsigned i = 0; i < wideMatch.size(); i++)
+					{
+						pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
+					}
 				}
 				break;
 			case 2:
-				if (result = std::regex_match(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx))
+				if (result = std::regex_match(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx, flag))
 				{
 					pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
 				}
@@ -296,9 +332,20 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			default:
 				break;
 			}
+			DWORD dwEndTime = GetTickCount();
+
 			// 设置UI需要用到的状态标记
-			result ? pDlg->m_nStatusFlag = 1 : pDlg->m_nStatusFlag = 2;
-			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, result);
+			if (result)
+			{
+				pDlg->m_tNotifyUiEntity.m_nStatus = SUCCESSED;
+				StringCchPrintf(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("成功，耗时%d毫秒"), dwEndTime - dwStartTime);
+			}
+			else
+			{
+				pDlg->m_tNotifyUiEntity.m_nStatus = FAILED;
+				StringCchCopy(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败"));
+			}
+			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, 0);
 		}
 	}
 
@@ -308,16 +355,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 
 afx_msg LRESULT CSinoiovRegExDlg::OnNotifyUi(WPARAM wParam, LPARAM lParam)
 {
-	BOOL result = (BOOL)lParam;
-	if (result)
-	{
-		m_ResultStatus.SetWindowText(_T("成功"));
-	}
-	else
-	{
-		m_ResultStatus.SetWindowText(_T("失败"));
-	}
-
+	m_ResultStatus.SetWindowText(m_tNotifyUiEntity.m_szMessage);
 	m_ResultSet.UpdateData();
 
 	return 0;
@@ -332,9 +370,9 @@ HBRUSH CSinoiovRegExDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	if (IDC_STATIC_STATUS == pWnd->GetDlgCtrlID())  // 判断发出消息的空间是否是该静态文本框
 	{
 		// 设置文本颜色
-		if (m_nStatusFlag == 1)
+		if (m_tNotifyUiEntity.m_nStatus == SUCCESSED)
 			pDC->SetTextColor(RGB(33, 197, 41)); // 成功态
-		else if (m_nStatusFlag == 2)
+		else if (m_tNotifyUiEntity.m_nStatus == FAILED)
 			pDC->SetTextColor(RGB(255, 0, 0)); // 失败态
 	}
 
