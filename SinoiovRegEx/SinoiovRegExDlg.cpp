@@ -7,6 +7,10 @@
 #include "SinoiovRegExDlg.h"
 #include "afxdialogex.h"
 
+#include <strsafe.h>
+#include <regex>
+#include <iostream>
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -60,8 +64,8 @@ void CSinoiovRegExDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_EDIT_REGEX, m_SourceRegex);
 	DDX_Control(pDX, IDC_EDIT_SOURCE, m_SourceText);
-	DDX_Control(pDX, IDC_LIST_RESULT, m_Result);
 	DDX_Control(pDX, IDC_STATIC_STATUS, m_ResultStatus);
+	DDX_Control(pDX, IDC_LIST_RESULT, m_ResultSet);
 }
 
 BEGIN_MESSAGE_MAP(CSinoiovRegExDlg, CDialogEx)
@@ -70,6 +74,10 @@ BEGIN_MESSAGE_MAP(CSinoiovRegExDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON_RUN, &CSinoiovRegExDlg::OnBnClickedButtonRun)
 	ON_WM_CLOSE()
+	ON_BN_CLICKED(IDC_RADIO1, &CSinoiovRegExDlg::OnBnClickedRadio1)
+	ON_BN_CLICKED(IDC_RADIO2, &CSinoiovRegExDlg::OnBnClickedRadio2)
+	ON_BN_CLICKED(IDC_RADIO3, &CSinoiovRegExDlg::OnBnClickedRadio3)
+	ON_MESSAGE(WM_NOTIFY_UI, &CSinoiovRegExDlg::OnNotifyUi)
 END_MESSAGE_MAP()
 
 
@@ -120,6 +128,10 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 		AfxMessageBox(_T("应用程序启动失败！"), MB_OK | MB_ICONSTOP);
 		exit(255);
 	}
+
+	// 默认模式
+	((CButton *)GetDlgItem(IDC_RADIO1))->SetCheck(TRUE);
+	m_ModeValue = 1;
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -178,6 +190,9 @@ HCURSOR CSinoiovRegExDlg::OnQueryDragIcon()
 void CSinoiovRegExDlg::OnBnClickedButtonRun()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	m_ResultSet.ResetContent();
+	m_ResultStatus.SetWindowText(_T(""));
+
 	SetEvent(m_hRunEvent);
 }
 
@@ -206,6 +221,27 @@ void CSinoiovRegExDlg::OnClose()
 	CDialogEx::OnClose();
 }
 
+void CSinoiovRegExDlg::OnBnClickedRadio1()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_ModeValue = 1;
+}
+
+
+void CSinoiovRegExDlg::OnBnClickedRadio2()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_ModeValue = 2;
+}
+
+
+void CSinoiovRegExDlg::OnBnClickedRadio3()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_ModeValue = 3;
+}
+
+
 DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 {
 	CSinoiovRegExDlg *pDlg = (CSinoiovRegExDlg *)lpParam;
@@ -214,6 +250,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 		exit(254);
 	}
 
+	TCHAR szMsg[BUFSIZ] = { 0 };
 	while (TRUE) {
 		if (WaitForSingleObject(pDlg->m_hRunEvent, 100) == WAIT_OBJECT_0)
 		{
@@ -222,10 +259,58 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 				OutputDebugString(_T("regex quit"));
 				break;
 			}
-			OutputDebugString(_T("regex run"));
+			
+			CString srcRegex;
+			pDlg->m_SourceRegex.GetWindowText(srcRegex);
+			std::wstring wRegexStr(srcRegex.GetBuffer());
+			srcRegex.ReleaseBuffer();
+			std::wregex wrx(wRegexStr.c_str());
+
+			CString srcText;
+			pDlg->m_SourceText.GetWindowText(srcText);
+			std::wstring wSrcText(srcText.GetBuffer());
+			srcText.ReleaseBuffer();
+
+			std::wsmatch wideMatch;
+
+			BOOL result = FALSE;
+			switch (pDlg->m_ModeValue) {
+			case 1:
+				if (result = std::regex_search(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx))
+				{
+					pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
+				}
+				break;
+			case 2:
+				if (result = std::regex_match(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx))
+				{
+					pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
+				}
+				break;
+			case 3:
+				break;
+			default:
+				break;
+			}
+			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, result);
 		}
 	}
 
 	return 0;
 }
 
+
+
+
+
+afx_msg LRESULT CSinoiovRegExDlg::OnNotifyUi(WPARAM wParam, LPARAM lParam)
+{
+	BOOL result = (BOOL)lParam;
+	if (result)
+		m_ResultStatus.SetWindowText(_T("成功"));
+	else
+		m_ResultStatus.SetWindowText(_T("失败"));
+	m_ResultSet.UpdateData();
+
+	return 0;
+}

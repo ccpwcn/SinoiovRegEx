@@ -6,6 +6,8 @@
 #include "afxwin.h"
 
 
+#define WM_NOTIFY_UI (WM_USER+8)
+
 // CSinoiovRegExDlg 对话框
 class CSinoiovRegExDlg : public CDialogEx
 {
@@ -39,8 +41,6 @@ private:
 	CEdit m_SourceRegex;
 	// 用户输入的源文本
 	CEdit m_SourceText;
-	// 结果集
-	CListBox m_Result;
 	// 结果状态
 	CStatic m_ResultStatus;
 
@@ -52,4 +52,16 @@ private:
 public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnClose();
+private:
+	// 匹配模式
+	BOOL m_ModeValue;
+public:
+	afx_msg void OnBnClickedRadio1();
+	afx_msg void OnBnClickedRadio2();
+	afx_msg void OnBnClickedRadio3();
+protected:
+	afx_msg LRESULT OnNotifyUi(WPARAM wParam, LPARAM lParam);
+private:
+	// 结果集
+	CListBox m_ResultSet;
 };
