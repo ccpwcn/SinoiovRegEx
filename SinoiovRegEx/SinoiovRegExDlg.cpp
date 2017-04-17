@@ -294,6 +294,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			default:
 				break;
 			}
+			// 设置UI需要用到的状态标记
 			result ? pDlg->m_nStatusFlag = 1 : pDlg->m_nStatusFlag = 2;
 			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, result);
 		}
