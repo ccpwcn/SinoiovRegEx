@@ -64,4 +64,7 @@ protected:
 private:
 	// ½á¹û¼¯
 	CListBox m_ResultSet;
+	short m_nStatusFlag;
+public:
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 };

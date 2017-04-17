@@ -78,6 +78,7 @@ BEGIN_MESSAGE_MAP(CSinoiovRegExDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_RADIO2, &CSinoiovRegExDlg::OnBnClickedRadio2)
 	ON_BN_CLICKED(IDC_RADIO3, &CSinoiovRegExDlg::OnBnClickedRadio3)
 	ON_MESSAGE(WM_NOTIFY_UI, &CSinoiovRegExDlg::OnNotifyUi)
+	ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
 
@@ -132,6 +133,7 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 	// 默认模式
 	((CButton *)GetDlgItem(IDC_RADIO1))->SetCheck(TRUE);
 	m_ModeValue = 1;
+	m_nStatusFlag = 0;
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -292,6 +294,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			default:
 				break;
 			}
+			result ? pDlg->m_nStatusFlag = 1 : pDlg->m_nStatusFlag = 2;
 			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, result);
 		}
 	}
@@ -300,17 +303,38 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 }
 
 
-
-
-
 afx_msg LRESULT CSinoiovRegExDlg::OnNotifyUi(WPARAM wParam, LPARAM lParam)
 {
 	BOOL result = (BOOL)lParam;
 	if (result)
+	{
 		m_ResultStatus.SetWindowText(_T("成功"));
+	}
 	else
+	{
 		m_ResultStatus.SetWindowText(_T("失败"));
+	}
+
 	m_ResultSet.UpdateData();
 
 	return 0;
+}
+
+
+HBRUSH CSinoiovRegExDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+	HBRUSH hbr = CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+
+	// TODO:  在此更改 DC 的任何特性
+	if (IDC_STATIC_STATUS == pWnd->GetDlgCtrlID())  // 判断发出消息的空间是否是该静态文本框
+	{
+		// 设置文本颜色
+		if (m_nStatusFlag == 1)
+			pDC->SetTextColor(RGB(33, 197, 41)); // 成功态
+		else if (m_nStatusFlag == 2)
+			pDC->SetTextColor(RGB(255, 0, 0)); // 失败态
+	}
+
+	// TODO:  如果默认的不是所需画笔，则返回另一个画笔
+	return hbr;
 }
