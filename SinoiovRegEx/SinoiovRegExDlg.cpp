@@ -72,10 +72,10 @@ void CSinoiovRegExDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_EDIT_REGEX, m_SourceRegex);
 	DDX_Control(pDX, IDC_EDIT_SOURCE, m_SourceText);
 	DDX_Control(pDX, IDC_STATIC_STATUS, m_ResultStatus);
-	DDX_Control(pDX, IDC_LIST_RESULT, m_ResultSet);
 	DDX_Control(pDX, IDC_CHECK_ECMAScript, m_ECMAScript);
 	DDX_Control(pDX, IDC_CHECK_CASE_INSENSITIVE, m_CaseInsensitive);
 	DDX_Control(pDX, IDC_CHECK_MULTILINE, m_Multiline);
+	DDX_Control(pDX, IDC_LIST_RESULTSET, m_ResultSet);
 }
 
 BEGIN_MESSAGE_MAP(CSinoiovRegExDlg, CDialogEx)
@@ -124,6 +124,9 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	std::locale loc("");
+	std::wcout.imbue(loc);
+
 	m_hWorkThread = CreateThread(
 		NULL,	// pointer to security attributes
 		0,		// initial thread stack size
@@ -141,9 +144,18 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 	}
 
 	// 默认模式
+	m_ECMAScript.SetCheck(1);
+
 	((CButton *)GetDlgItem(IDC_RADIO1))->SetCheck(TRUE);
 	m_ModeValue = 1;
 	m_tNotifyUiEntity.m_nStatus = IDEL;
+
+	m_ResultSet.GetClientRect(&m_ResultSetRect);
+	m_ResultSet.SetExtendedStyle(m_ResultSet.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	LVTILEVIEWINFO ti = { 0 };
+	ti.cbSize = sizeof(LVTILEVIEWINFO);
+	ti.dwFlags = LVTVIF_AUTOSIZE;
+	m_ResultSet.SetTileViewInfo(&ti);
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -202,8 +214,12 @@ HCURSOR CSinoiovRegExDlg::OnQueryDragIcon()
 void CSinoiovRegExDlg::OnBnClickedButtonRun()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	m_ResultSet.ResetContent();
-	m_ResultStatus.SetWindowText(_T(""));
+	memset(&m_tNotifyUiEntity, 0, sizeof(m_tNotifyUiEntity));
+	m_ResultSet.DeleteAllItems();
+
+	BOOL Deleted = TRUE;
+	while (Deleted == TRUE)
+		Deleted = m_ResultSet.DeleteColumn(0);
 
 	SetEvent(m_hRunEvent);
 }
@@ -265,6 +281,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 
 	typedef boost::basic_regex<TCHAR> tregex;
 	typedef boost::match_results<TCHAR const*> tmatch;
+
 	TCHAR szMsg[BUFSIZ] = { 0 };
 	while (TRUE) {
 		if (WaitForSingleObject(pDlg->m_hRunEvent, 100) == WAIT_OBJECT_0)
@@ -284,50 +301,75 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			pDlg->m_SourceText.GetWindowText(srcText);
 
 			
-			boost::regex_constants::syntax_option_type type;
+			boost::regex_constants::syntax_option_type type = boost::regex_constants::normal;
 			boost::regex_constants::match_flag_type flag = boost::regex_constants::match_flag_type::match_default;
 			if (pDlg->m_ECMAScript.GetCheck() == 1)
 			{
-				type = boost::regex::ECMAScript;
+				type = boost::regex::ECMAScript;  // 采取ECMA-262中的ECMAScript所用语法
 			}
 
-			if (pDlg->m_CaseInsensitive.GetCheck() == 0)
+			if (pDlg->m_CaseInsensitive.GetCheck() == 1)
 			{
-				type = type | boost::regex_constants::icase;
+				type = type | boost::regex_constants::icase;   // 大小写不敏感的CheckBox选定时，设置为忽略大小写
 				
 			}
 			if (pDlg->m_Multiline.GetCheck() == 0)
 			{
 				flag = flag | boost::regex_constants::match_single_line;
 			}
+			else
+			{
+				type = type | boost::regex_constants::extended;
+				flag = flag | boost::regex_constants::match_not_bol;
+				flag = flag | boost::regex_constants::match_not_eol;
+				flag = flag | boost::regex_constants::match_not_bow;
+				flag = flag | boost::regex_constants::match_not_eow;
+				flag = flag | boost::regex_constants::match_any;
+			}
 
 			tregex r(srcRegex, type);
 			tmatch what;
 
 			BOOL result = FALSE;
-			// 根据不同的选定状态执行
-			switch (pDlg->m_ModeValue) {
-			case 1:
-				if ((result = boost::regex_search(srcText, what, r, flag)) == TRUE)
-				{
-					for (auto it = what.begin(); it != what.end(); it++)
+			try
+			{
+				// 根据不同的选定状态执行
+				switch (pDlg->m_ModeValue) {
+				case 1:
+					if ((result = boost::regex_search(srcText, what, r, flag)) == TRUE)
 					{
-						pDlg->m_ResultSet.AddString(CString(it->first, it->length()));
+						for (size_t i = 0; i < what.size(); i++)
+						{
+							pDlg->m_ResultSet.InsertColumn(i, _T("分组0"), LVCFMT_CENTER, pDlg->m_ResultSetRect.Width() / 5, i);
+							pDlg->m_ResultSet.InsertItem(i, CString(what[0].first, what[0].length()).Trim());
+							pDlg->m_ResultSet.SetItemText(i, 1, CString(what[1].first, what[1].length()).Trim());
+							pDlg->m_ResultSet.SetItemText(i, 2, CString(what[2].first, what[2].length()).Trim());
+							pDlg->m_ResultSet.SetItemText(i, 3, CString(what[3].first, what[3].length()).Trim());
+							pDlg->m_ResultSet.SetItemText(i, 4, CString(what[4].first, what[4].length()).Trim());
+							pDlg->m_ResultSet.SetItemText(i, 5, CString(what[5].first, what[5].length()).Trim());
+						}
 					}
+					break;
+				case 2:
+					if ((result = boost::regex_match(srcText, what, r, flag)) == TRUE)
+					{
+						pDlg->m_ResultSet.InsertItem(0, CString(_T("分组0")));
+						pDlg->m_ResultSet.SetItemText(0, 1, CString(what.str().c_str()).Trim());
+					}
+					break;
+				case 3:
+					// TODO: 暂时没有实现
+					break;
+				default:
+					break;
 				}
-				break;
-			case 2:
-				if ((result = boost::regex_match(srcText, what, r, flag)) == TRUE)
-				{
-					pDlg->m_ResultSet.AddString(CString(what[0].first, what.length()));
-				}
-				break;
-			case 3:
-				// TODO: 暂时没有实现
-				break;
-			default:
-				break;
 			}
+			catch (std::exception const& e)
+			{
+				result = FALSE;
+				StringCchPrintf(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败，%s"), e.what());
+			}
+			
 			DWORD dwEndTime = GetTickCount();
 
 			// 设置UI需要用到的状态标记
@@ -339,7 +381,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			else
 			{
 				pDlg->m_tNotifyUiEntity.m_nStatus = FAILED;
-				StringCchCopy(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败"));
+				pDlg->m_tNotifyUiEntity.m_szMessage[0] ? StringCchCopy(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败")) : 0;
 			}
 			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, 0);
 		}

@@ -4,6 +4,7 @@
 
 #pragma once
 #include "afxwin.h"
+#include "afxcmn.h"
 
 
 #define WM_NOTIFY_UI (WM_USER+8)
@@ -70,8 +71,6 @@ public:
 protected:
 	afx_msg LRESULT OnNotifyUi(WPARAM wParam, LPARAM lParam);
 private:
-	// 结果集
-	CListBox m_ResultSet;
 	NOTIFY_UI_ENTITY m_tNotifyUiEntity;
 public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
@@ -82,4 +81,7 @@ private:
 	CButton m_CaseInsensitive;
 	// 多行模式
 	CButton m_Multiline;
+	// 结果集
+	CListCtrl m_ResultSet;
+	CRect m_ResultSetRect;
 };
