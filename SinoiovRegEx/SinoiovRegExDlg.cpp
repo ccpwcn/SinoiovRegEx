@@ -8,7 +8,9 @@
 #include "afxdialogex.h"
 
 #include <strsafe.h>
-#include <regex>
+
+#define BOOST_HAS_ICU
+#include <boost/regex/mfc.hpp>
 #include <iostream>
 
 #ifdef _DEBUG
@@ -72,7 +74,7 @@ void CSinoiovRegExDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_STATIC_STATUS, m_ResultStatus);
 	DDX_Control(pDX, IDC_LIST_RESULT, m_ResultSet);
 	DDX_Control(pDX, IDC_CHECK_ECMAScript, m_ECMAScript);
-	DDX_Control(pDX, IDC_CHECK_CASE_SENSITIVE, m_CaseSensitive);
+	DDX_Control(pDX, IDC_CHECK_CASE_INSENSITIVE, m_CaseInsensitive);
 	DDX_Control(pDX, IDC_CHECK_MULTILINE, m_Multiline);
 }
 
@@ -139,7 +141,6 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 	}
 
 	// 默认模式
-	m_CaseSensitive.SetCheck(1);
 	((CButton *)GetDlgItem(IDC_RADIO1))->SetCheck(TRUE);
 	m_ModeValue = 1;
 	m_tNotifyUiEntity.m_nStatus = IDEL;
@@ -262,6 +263,8 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 		exit(254);
 	}
 
+	typedef boost::basic_regex<TCHAR> tregex;
+	typedef boost::match_results<TCHAR const*> tmatch;
 	TCHAR szMsg[BUFSIZ] = { 0 };
 	while (TRUE) {
 		if (WaitForSingleObject(pDlg->m_hRunEvent, 100) == WAIT_OBJECT_0)
@@ -276,54 +279,47 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 
 			CString srcRegex;
 			pDlg->m_SourceRegex.GetWindowText(srcRegex);
-			std::wstring wRegexStr(srcRegex.GetBuffer());
-			srcRegex.ReleaseBuffer();
-			std::wregex wrx;
-			std::regex_constants::syntax_option_type type;
-
+			
 			CString srcText;
 			pDlg->m_SourceText.GetWindowText(srcText);
-			std::wstring wSrcText(srcText.GetBuffer());
-			srcText.ReleaseBuffer();
-			OutputDebugString(wSrcText.c_str());
 
-			std::wsmatch wideMatch;
-
-			std::regex_constants::match_flag_type flag;;
+			
+			boost::regex_constants::syntax_option_type type;
+			boost::regex_constants::match_flag_type flag = boost::regex_constants::match_flag_type::match_default;
 			if (pDlg->m_ECMAScript.GetCheck() == 1)
 			{
-				flag = std::regex_constants::format_default;
-				type = std::regex::ECMAScript;
+				type = boost::regex::ECMAScript;
 			}
 
-			if (pDlg->m_CaseSensitive.GetCheck() == 0)
+			if (pDlg->m_CaseInsensitive.GetCheck() == 0)
 			{
-				type = type | std::regex_constants::icase;
+				type = type | boost::regex_constants::icase;
 				
 			}
-			if (pDlg->m_Multiline.GetCheck() == 1)
+			if (pDlg->m_Multiline.GetCheck() == 0)
 			{
-				type = type | std::regex_constants::multiline;
+				flag = flag | boost::regex_constants::match_single_line;
 			}
-			wrx = std::wregex(wRegexStr.c_str(), type);
+
+			tregex r(srcRegex, type);
+			tmatch what;
 
 			BOOL result = FALSE;
 			// 根据不同的选定状态执行
-			std::wstring buffer;
 			switch (pDlg->m_ModeValue) {
 			case 1:
-				if (buffer.length() > 0 && (result = std::regex_search(buffer.cbegin(), buffer.cend(), wideMatch, wrx, flag)) == TRUE)
+				if ((result = boost::regex_search(srcText, what, r, flag)) == TRUE)
 				{
-					for (unsigned i = 0; i < wideMatch.size(); i++)
+					for (auto it = what.begin(); it != what.end(); it++)
 					{
-						pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
+						pDlg->m_ResultSet.AddString(CString(it->first, it->length()));
 					}
 				}
 				break;
 			case 2:
-				if (result = std::regex_match(wSrcText.cbegin(), wSrcText.cend(), wideMatch, wrx, flag))
+				if ((result = boost::regex_match(srcText, what, r, flag)) == TRUE)
 				{
-					pDlg->m_ResultSet.AddString(wideMatch.str().c_str());
+					pDlg->m_ResultSet.AddString(CString(what[0].first, what.length()));
 				}
 				break;
 			case 3:

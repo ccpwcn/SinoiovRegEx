@@ -79,7 +79,7 @@ private:
 	// ECMAScript
 	CButton m_ECMAScript;
 	// 大小写开关控件
-	CButton m_CaseSensitive;
+	CButton m_CaseInsensitive;
 	// 多行模式
 	CButton m_Multiline;
 };
