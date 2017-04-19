@@ -10,6 +10,7 @@
 #include <strsafe.h>
 
 #define BOOST_HAS_ICU
+#include <boost/regex.hpp>
 #include <boost/regex/mfc.hpp>
 #include <iostream>
 
@@ -214,7 +215,6 @@ HCURSOR CSinoiovRegExDlg::OnQueryDragIcon()
 void CSinoiovRegExDlg::OnBnClickedButtonRun()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	memset(&m_tNotifyUiEntity, 0, sizeof(m_tNotifyUiEntity));
 	m_ResultSet.DeleteAllItems();
 
 	BOOL Deleted = TRUE;
@@ -279,11 +279,6 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 		exit(254);
 	}
 
-	typedef boost::basic_regex<TCHAR> tregex;
-	typedef boost::match_results<TCHAR const*> tmatch;
-	typedef boost::regex_iterator<TCHAR const*>        tregex_iterator;
-	typedef boost::regex_token_iterator<TCHAR const*>  tregex_token_iterator;
-
 	TCHAR szMsg[BUFSIZ] = { 0 };
 	while (TRUE) {
 		if (WaitForSingleObject(pDlg->m_hRunEvent, 100) == WAIT_OBJECT_0)
@@ -295,6 +290,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			}
 			
 			DWORD dwStartTime = GetTickCount();
+			memset(&(pDlg->m_tNotifyUiEntity), 0, sizeof(m_tNotifyUiEntity));
 
 			CString srcRegex;
 			pDlg->m_SourceRegex.GetWindowText(srcRegex);
@@ -315,17 +311,13 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 				type = type | boost::regex_constants::icase;   // 大小写不敏感的CheckBox选定时，设置为忽略大小写
 				
 			}
-			if (pDlg->m_Multiline.GetCheck() == 0)
-			{
-				flag = flag | boost::regex_constants::match_single_line;
-			}
-			else
+			if (pDlg->m_Multiline.GetCheck() == 1)
 			{
 				flag = flag | boost::regex_constants::match_not_bol;
 				flag = flag | boost::regex_constants::match_not_eol;
 			}
 
-			tregex r(srcRegex, type);
+			boost::tregex r(srcRegex, type);
 
 			std::vector<CString> strs;
 			pDlg->m_fnSplitString(srcText, _T("\r\n"), strs);
@@ -339,8 +331,8 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 				case 1:
 					if (pDlg->m_Multiline.GetCheck() == 0)
 					{
-						tmatch what;
-						if ((result = boost::regex_search(srcText, what, r, flag)) == TRUE)
+						boost::tmatch what;
+						if ((result = boost::regex_search(srcText, what, r)) == TRUE)
 						{
 							for (size_t i = 0; i < 5; i++)
 							{
@@ -348,34 +340,35 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 								pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, i);
 							}
 
-							pDlg->m_ResultSet.InsertItem(0, CString(what[2].first));
-							for (size_t i = 1; i < 5; i++)
+							pDlg->m_ResultSet.InsertItem(0, CString(what[0].first));
+							for (size_t i = 0; i < 5; i++)
 							{
-								pDlg->m_ResultSet.SetItemText(0, i, CString(what[i].first, what.length(i)));
+								pDlg->m_ResultSet.SetItemText(0, i, CString(what[i].first, what[i].length()));
 							}
 						}
 					}
 					else
 					{
-						for (size_t i = 0; i < strs.size(); i++)
+						for (size_t i = 0, col = 0; i < strs.size(); i++)
 						{
-							tmatch what;
+							boost::tmatch what;
 							if (boost::regex_search(strs.at(i), what, r, flag))
 							{
-								if (i == 0)
+								if (col == 0)
 								{
-									for (short j = 1; j < 5; j++)
+									for (short j = 0; j < 5; j++)
 									{
 										group.Format(_T("分组%d"), j);
 										pDlg->m_ResultSet.InsertColumn(j, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, j);
 									}
 
 								}
-								pDlg->m_ResultSet.InsertItem(i, CString(what[0].first));
+								pDlg->m_ResultSet.InsertItem(col++, CString(what[0].first));
 								for (size_t j = 1; j < 5; j++)
 								{
-									pDlg->m_ResultSet.SetItemText(i, j, CString(what[j].first, what[j].length()));
+									pDlg->m_ResultSet.SetItemText(i, j, CString(what[j].first));
 								}
+								result = TRUE;
 							}
 							else
 							{
@@ -387,17 +380,18 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 					break;
 				case 2:
 				{
-					tmatch what;
+					boost::tmatch what;
 					if ((result = boost::regex_match(srcText, what, r, flag)) == TRUE)
 					{
-						pDlg->m_ResultSet.InsertItem(0, CString(_T("分组0")));
-						pDlg->m_ResultSet.SetItemText(0, 1, CString(what.str().c_str()).Trim());
+						pDlg->m_ResultSet.InsertColumn(0, _T("分组0"), LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, 0);
+						pDlg->m_ResultSet.InsertItem(0, CString(what[0].first, what[0].length()));
 					}
 				}
 					
 					break;
 				case 3:
 					// TODO: 暂时没有实现
+					throw std::runtime_error("暂不支持");
 					break;
 				default:
 					break;
@@ -406,22 +400,21 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			catch (std::exception const& e)
 			{
 				result = FALSE;
-				StringCchPrintf(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败，%s"), e.what());
+				MultiByteToWideChar(CP_ACP, 0, e.what(), -1, pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ);
 			}
 			
 			DWORD dwEndTime = GetTickCount();
-			result = (result && failedVector.empty());
 
 			// 设置UI需要用到的状态标记
-			if (result)
+			if (!result)
 			{
-				pDlg->m_tNotifyUiEntity.m_nStatus = SUCCESSED;
-				StringCchPrintf(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("成功，耗时%d毫秒"), dwEndTime - dwStartTime);
+				pDlg->m_tNotifyUiEntity.m_nStatus = FAILED;
+				pDlg->m_tNotifyUiEntity.m_szMessage[0] == _T('\0') ? StringCchCopy(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败")) : 0;
 			}
 			else
 			{
-				pDlg->m_tNotifyUiEntity.m_nStatus = FAILED;
-				pDlg->m_tNotifyUiEntity.m_szMessage[0] ? StringCchCopy(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("失败")) : 0;
+				pDlg->m_tNotifyUiEntity.m_nStatus = SUCCESSED;
+				StringCchPrintf(pDlg->m_tNotifyUiEntity.m_szMessage, BUFSIZ, _T("成功，耗时%d毫秒"), dwEndTime - dwStartTime);
 			}
 			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, 0);
 		}
