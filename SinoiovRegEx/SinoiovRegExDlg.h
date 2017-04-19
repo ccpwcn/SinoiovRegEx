@@ -5,6 +5,7 @@
 #pragma once
 #include "afxwin.h"
 #include "afxcmn.h"
+#include <vector>
 
 
 #define WM_NOTIFY_UI (WM_USER+8)
@@ -58,6 +59,7 @@ private:
 	HANDLE m_hRunEvent;
 
 	static DWORD WINAPI m_fnWorkThreadProc(LPVOID lpParam);
+	static void m_fnSplitString(const CString & in, const CString & seperator, std::vector<CString> & out);
 public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnClose();
