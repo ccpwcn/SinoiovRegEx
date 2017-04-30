@@ -7,4 +7,4 @@ VC++环境下的正则表达式测试工具
 
 成功图：
 
-![https://raw.githubusercontent.com/ccpwcn/GitRepository/master/resource/public-pics/VC%2B%2BRegex-successed2.png](https://raw.githubusercontent.com/ccpwcn/GitRepository/master/resource/public-pics/VC%2B%2BRegex-successed2.png)
+![https://raw.githubusercontent.com/ccpwcn/GitRepository/master/resource/public-pics/SinoiovRegex.png](https://raw.githubusercontent.com/ccpwcn/GitRepository/master/resource/public-pics/SinoiovRegex.png)
