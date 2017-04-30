@@ -326,65 +326,37 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			CString group;
 			try
 			{
+				boost::tmatch what;
 				// 根据不同的选定状态执行
 				switch (pDlg->m_ModeValue) {
 				case 1:
-					if (pDlg->m_Multiline.GetCheck() == 0)
+					if ((result = boost::regex_search(srcText, what, r)) == TRUE)
 					{
-						boost::tmatch what;
-						if ((result = boost::regex_search(srcText, what, r)) == TRUE)
+						for (size_t i = 0; i < what.size(); i++)
 						{
-							for (size_t i = 0; i < 5; i++)
-							{
-								group.Format(_T("分组%d"), i);
-								pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, i);
-							}
+							group.Format(_T("分组%d"), i);
+							pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / what.size(), i);
+						}
 
-							pDlg->m_ResultSet.InsertItem(0, CString(what[0].first));
-							for (size_t i = 0; i < 5; i++)
-							{
-								pDlg->m_ResultSet.SetItemText(0, i, CString(what[i].first, what[i].length()));
-							}
+						pDlg->m_ResultSet.InsertItem(0, CString(what[0].first));
+						for (size_t i = 0; i < what.size(); i++)
+						{
+							pDlg->m_ResultSet.SetItemText(0, i, CString(what[i].first, what[i].length()));
 						}
 					}
-					else
-					{
-						for (size_t i = 0, col = 0; i < strs.size(); i++)
-						{
-							boost::tmatch what;
-							if (boost::regex_search(strs.at(i), what, r, flag))
-							{
-								if (col == 0)
-								{
-									for (short j = 0; j < 5; j++)
-									{
-										group.Format(_T("分组%d"), j);
-										pDlg->m_ResultSet.InsertColumn(j, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, j);
-									}
-
-								}
-								pDlg->m_ResultSet.InsertItem(col++, CString(what[0].first));
-								for (size_t j = 1; j < 5; j++)
-								{
-									pDlg->m_ResultSet.SetItemText(i, j, CString(what[j].first));
-								}
-								result = TRUE;
-							}
-							else
-							{
-								failedVector.push_back(0);
-							}
-						}
-					}
-					
 					break;
 				case 2:
 				{
-					boost::tmatch what;
-					if ((result = boost::regex_match(srcText, what, r, flag)) == TRUE)
+					for (size_t i = 0; i < what.size(); i++)
 					{
-						pDlg->m_ResultSet.InsertColumn(0, _T("分组0"), LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, 0);
-						pDlg->m_ResultSet.InsertItem(0, CString(what[0].first, what[0].length()));
+						group.Format(_T("分组%d"), i);
+						pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / what.size(), i);
+					}
+
+					pDlg->m_ResultSet.InsertItem(0, CString(what[0].first));
+					for (size_t i = 0; i < what.size(); i++)
+					{
+						pDlg->m_ResultSet.SetItemText(0, i, CString(what[i].first, what[i].length()));
 					}
 				}
 					
