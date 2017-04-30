@@ -12,13 +12,6 @@
 #define BOOST_HAS_ICU
 #include <boost/regex.hpp>
 #include <boost/regex/mfc.hpp>
-#include <iostream>
-
-#ifdef UNICODE
-typedef std::wstring STRING;
-#else
-typedef std::string STRING;
-#endif
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -156,7 +149,7 @@ BOOL CSinoiovRegExDlg::OnInitDialog()
 	((CButton *)GetDlgItem(IDC_RADIO1))->SetCheck(TRUE);
 	m_ModeValue = 1;
 	m_tNotifyUiEntity.m_nStatus = IDEL;
-	m_SourceRegex.SetWindowText(_T("(\\d{6})(19[4-9][0-9]|20[0-9]{2})(0[0-9]|1[0-2])([0-3][0-9])(\\d{3}[xX])"));
+	m_SourceRegex.SetWindowText(_T("(\\d{6})(19[4-9][0-9]|20[0-9]{2})(0[0-9]|1[0-2])([0-3][0-9])(\\d{4}|\\d{3}[xX])"));
 	m_SourceText.SetWindowText(_T("34072119790807393X\r\n140123198112194055"));
 
 	m_ResultSet.GetClientRect(&m_ResultSetRect);
@@ -289,6 +282,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 
 	TCHAR szMsg[BUFSIZ] = { 0 };
 	while (TRUE) {
+		short nWorkMode = 0;
 		if (WaitForSingleObject(pDlg->m_hRunEvent, 100) == WAIT_OBJECT_0)
 		{
 			if (WaitForSingleObject(pDlg->m_hQuitEvent, 50) == WAIT_OBJECT_0)
@@ -296,7 +290,12 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 				OutputDebugString(_T("sinoiov regex quit"));
 				break;
 			}
-			
+			if (nWorkMode == 1)
+			{
+				::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 1, 0);
+				continue;
+			}
+			nWorkMode = 1;
 			DWORD dwStartTime = GetTickCount();
 			memset(&(pDlg->m_tNotifyUiEntity), 0, sizeof(m_tNotifyUiEntity));
 
@@ -330,36 +329,68 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			BOOL result = TRUE;
 			try
 			{
-				int nLineIndex = 0;
 				// 根据不同的选定状态执行
 				switch (pDlg->m_ModeValue) {
 				case 1:
 					{
-						boost::tmatch what;
-						if ((result = boost::regex_search(srcText, what, r)) == TRUE)
+						if (pDlg->m_Multiline.GetCheck() == 1)
 						{
-							for (size_t i = 0; i < 5; i++)
+							std::vector<STD_STRING> tokens = pDlg->m_fnSplitString(srcText.GetBuffer(), _T("\r\n")); srcText.ReleaseBuffer();
+							boost::wregex exp(srcRegex.GetBuffer()); srcRegex.ReleaseBuffer();
+							size_t nLineCount = tokens.size();
+							for (size_t line = 0; line < nLineCount; line++)
 							{
-								group.Format(_T("分组%d"), i);
-								pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / 5, i);
-							}
+								boost::wsmatch results;
+								if (regex_search(tokens.at(line), results, exp))
+								{
+									size_t nResultSize = results.size();
+									for (size_t i = 0; line == 0 && i < nResultSize; i++)
+									{
+										group.Format(_T("分组%d"), i);
+										pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / nResultSize, i);
+									}
 
-							pDlg->m_ResultSet.InsertItem(nLineIndex, CString(what[0].first));
-							for (size_t i = 0; i < 5; i++)
-							{
-								pDlg->m_ResultSet.SetItemText(nLineIndex, i, CString(what[i].first, what[i].length()));
+									pDlg->m_ResultSet.InsertItem(line, STD_STRING(results[0]).c_str());
+									for (size_t i = 0; i < nResultSize; i++)
+									{
+										pDlg->m_ResultSet.SetColumnWidth(line, LVSCW_AUTOSIZE_USEHEADER);
+										pDlg->m_ResultSet.SetItemText(line, i, STD_STRING(results[i]).c_str());
+									}
+								}
 							}
-							nLineIndex++;
+						}
+						else
+						{
+							int nLineIndex = 0;
+							boost::tmatch what;
+							if ((result = boost::regex_search(srcText, what, r)) == TRUE)
+							{
+								size_t nResultSize = what.size();
+								for (size_t i = 0; nLineIndex == 0 && i < nResultSize; i++)
+								{
+									group.Format(_T("分组%d"), i);
+									pDlg->m_ResultSet.InsertColumn(i, group, LVCFMT_LEFT, pDlg->m_ResultSetRect.Width() / nResultSize, i);
+								}
+
+								pDlg->m_ResultSet.InsertItem(nLineIndex, CString(what[0].first));
+								for (size_t i = 0; i < nResultSize; i++)
+								{
+									pDlg->m_ResultSet.SetColumnWidth(nLineIndex, LVSCW_AUTOSIZE_USEHEADER);
+									pDlg->m_ResultSet.SetItemText(nLineIndex, i, CString(what[i].first, what[i].length()));
+								}
+								nLineIndex++;
+							}
 						}
 					}
 					break;
 				case 2:
 					{
+						int nLineIndex = 0;
 						boost::tregex_iterator it(boost::make_regex_iterator(srcText, r)), end;
 						while (it != end)
 						{
 							size_t nGroupSize = (*it).size();
-							for (size_t i = 0; i < nGroupSize; i++)
+							for (size_t i = 0; nLineIndex == 0 && i < nGroupSize; i++)
 							{
 								group.Format(_T("分组%d"), i);
 								int nColumnWidth = pDlg->m_ResultSetRect.Width() / nGroupSize + (*it)[i].length() * 4;
@@ -368,6 +399,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 							pDlg->m_ResultSet.InsertItem(nLineIndex, CString((*it)[0].first));
 							for (size_t i = 0; i < nGroupSize; i++)
 							{
+								pDlg->m_ResultSet.SetColumnWidth(nLineIndex, LVSCW_AUTOSIZE_USEHEADER);
 								pDlg->m_ResultSet.SetItemText(nLineIndex, i, CString((*it)[i].first, (*it)[i].length()));
 							}
 							it++;
@@ -399,6 +431,7 @@ DWORD WINAPI CSinoiovRegExDlg::m_fnWorkThreadProc(LPVOID lpParam)
 			}
 			
 			::SendMessage(pDlg->m_hWnd, WM_NOTIFY_UI, 0, 0);
+			nWorkMode = 0;
 		}
 	}
 
@@ -444,11 +477,40 @@ void CSinoiovRegExDlg::m_fnSplitString(const CString & in, const CString & seper
 	}
 }
 
+//字符串分割函数
+std::vector<STD_STRING> CSinoiovRegExDlg::m_fnSplitString(STD_STRING str, STD_STRING pattern)
+{
+	STD_STRING::size_type pos;
+	std::vector<STD_STRING> result;
+	str += pattern;//扩展字符串以方便操作
+	size_t size = str.size();
+
+	for (size_t i = 0; i < size; i++)
+	{
+		pos = str.find(pattern, i);
+		if (pos < size)
+		{
+			STD_STRING s = str.substr(i, pos - i);
+			result.push_back(s);
+			i = pos + pattern.size() - 1;
+		}
+	}
+	return result;
+}
+
 
 afx_msg LRESULT CSinoiovRegExDlg::OnNotifyUi(WPARAM wParam, LPARAM lParam)
 {
-	m_ResultStatus.SetWindowText(m_tNotifyUiEntity.m_szMessage);
-	m_ResultSet.UpdateData();
+	if (wParam == 0)
+	{
+		m_ResultStatus.SetWindowText(m_tNotifyUiEntity.m_szMessage);
+		m_ResultSet.UpdateData();
+	}
+	else if (wParam == 1)
+	{
+		m_ResultStatus.SetWindowText(_T("程序繁忙，请等待。"));
+		m_ResultSet.UpdateData();
+	}
 
 	return 0;
 }

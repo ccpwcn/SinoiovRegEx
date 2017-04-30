@@ -6,7 +6,13 @@
 #include "afxwin.h"
 #include "afxcmn.h"
 #include <vector>
+#include <iostream>
 
+#ifdef UNICODE
+typedef std::wstring STD_STRING;
+#else
+typedef std::string STD_STRING;
+#endif
 
 #define WM_NOTIFY_UI (WM_USER+8)
 
@@ -60,6 +66,7 @@ private:
 
 	static DWORD WINAPI m_fnWorkThreadProc(LPVOID lpParam);
 	static void m_fnSplitString(const CString & in, const CString & seperator, std::vector<CString> & out);
+	static std::vector<STD_STRING> m_fnSplitString(STD_STRING str, STD_STRING pattern);
 public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnClose();
