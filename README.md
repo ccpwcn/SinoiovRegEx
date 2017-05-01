@@ -1,5 +1,5 @@
 # SinoiovRegEx
-VC++环境下的正则表达式测试工具
+Windows环境下的正则表达式测试工具
 
 示意图：
 
